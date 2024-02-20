@@ -1,0 +1,345 @@
+---
+title: "NorthWind Dataset"
+author: "Nasreen Fatima"
+date: "2024-01-21"
+output: html_document
+---
+
+
+## 1.How many customer each country have?
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+library(dplyr)
+library(lubridate)
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+df_categories<- readxl::read_xlsx("categories.xlsx")
+df_order_item<- read.csv("orderdetails.csv")
+df_orders<- read.csv("orders.csv")
+df_product<- read.csv("products.csv")
+df_customers<- read.csv("customers.csv")
+df_suppliers <- read.csv("suppliers.csv")
+customer_count_by_country <- df_customers|>
+  group_by(Country) |>
+  summarise(TotalCustomers = n())
+```
+
+```{r echo=TRUE}
+ggplot(customer_count_by_country, aes(x = Country, y = TotalCustomers)) +
+  geom_bar(stat = "identity", fill = "black") +
+  geom_text(position = position_stack(vjust = 0.5), size = 3, color = "white", aes(label = TotalCustomers)) +
+  labs(title = "Total Number of Customers by Country",
+       x = "Country",
+       y = "Total Customers") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+## 2.Top Selling Countries
+```{r echo=TRUE,warning=FALSE,message=FALSE}
+df_sales_info <- df_order_item|>
+  left_join(df_orders|>
+              select(OrderID,CustomerID),
+            by= c("OrderID"="OrderID"))|>
+  left_join(df_customers|>
+              select(CustomerID,Country),
+            by= c("CustomerID"="CustomerID"))|>
+  mutate(Sales= UnitPrice*Quantity) |>
+  group_by(Country)|>
+  summarise(Total_sale=sum(Sales))
+
+top_10_selling_country <- df_sales_info |>
+  arrange(desc(Total_sale))|>
+  head(10)|>
+  select(Country,Total_sale)
+
+bar_chart_ggplot <- ggplot(top_10_selling_country, aes(x = Country, y = Total_sale)) +
+  geom_bar(stat = "identity", fill = "royalblue") +
+  labs(title = "Top 10 Selling Countries",
+       x = "Country",
+       y = "Total Sales") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_y_continuous(labels = scales::comma, breaks = scales::pretty_breaks())
+
+# Convert ggplot to plotly
+bar_chart_plotly <- ggplotly(bar_chart_ggplot)
+bar_chart_plotly
+```
+
+# CATEGORIES
+## 3. What is th total sales revenue for each catgory?
+```{r echo=TRUE,message=FALSE,warning=FALSE}
+
+df_category_sales <- df_order_item |>
+  left_join(df_product, by = "ProductID") |>
+  
+  left_join(df_categories, by="CategoryID")|>
+  group_by(CategoryID, CategoryName) |>
+  summarise(TotalSales = sum(UnitPrice.x * Quantity))
+
+# Plot sales trends by category
+bar_chart2_ggplot<-ggplot(df_category_sales, aes(x = CategoryName, y = TotalSales)) +
+  geom_bar(stat = "identity", fill = "brown") +
+  labs(title = "Total Sales by Category",
+       x = "Category",
+       y = "Total Sales") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  coord_flip()+
+  scale_y_continuous(labels = scales::comma, breaks = scales::pretty_breaks())
+bar_chart_plotly <- ggplotly(bar_chart2_ggplot)
+
+bar_chart_plotly
+```
+
+# FREIGHT
+
+## 4.What is average,maximum and minimum freight cost?
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+freight_cost <- df_orders|>
+  
+  summarise(avgFreight= mean(Freight, na.rm= TRUE),
+            maxFreight = max(Freight, na.rm= TRUE),
+            minFreight = min(Freight, na.rm= TRUE))
+df_orders$OrderDate <- ymd_hms(df_orders$OrderDate)
+df_orders$Month <- format(df_orders$OrderDate, "%Y-%m")
+df_orders$Year <- format(df_orders$OrderDate, "%Y")
+print(freight_cost)
+```
+## 5.Average Freight Cost Over Month
+```{r echo=TRUE, fig.width=13, message=FALSE, warning=FALSE}
+monthly_analysis <- df_orders |>
+  group_by(Month) |>
+  summarise(AvgFreight_Cost = mean(Freight, na.rm = TRUE))
+
+line_chart_ggplot<-ggplot(monthly_analysis,aes(x=Month,y=AvgFreight_Cost ,group=1)) +
+  geom_line(color="purple")+
+  labs(title = "Freight Cost Over Month",
+       x = "Month",
+       y = "Average Freight Cost")+
+  geom_point()
+line_chart_plotly <- ggplotly(line_chart_ggplot)
+line_chart_plotly
+```
+## 6.Average Freight Cost Over Year
+```{r echo=TRUE, fig.width=12, message=FALSE, warning=FALSE}
+yearly_analysis <- df_orders |>
+  group_by(Year) |>
+  summarise(AvgFreight_Cost = mean(Freight, na.rm = TRUE))
+
+line_chart2_ggplot<-ggplot(yearly_analysis,aes(x=Year,y=AvgFreight_Cost ,group=1)) +
+  geom_line(color="orange")+
+  labs(title = "Freight Cost Over Month",
+       x = "Year",
+       y = "Average Freight Cost")+
+  geom_point()
+line_chart_plotly <- ggplotly(line_chart2_ggplot)
+line_chart_plotly
+```
+
+## 7.Average Freight Cost Across Country
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+freight_country <- df_orders |>
+  group_by(ShipCountry) |>
+  summarise(AvgFreight_Cost = mean(Freight, na.rm = TRUE))
+print(freight_country)
+```
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+bar_chart <- ggplot(freight_country, aes(x = reorder(ShipCountry, AvgFreight_Cost), y = AvgFreight_Cost)) +
+  geom_bar(stat = "identity", fill = "pink") +
+  labs(title = "Average Freight Cost Across Countries",
+       x = "Country",
+       y = "Average Freight Cost") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+bar_chart_plotly <-ggplotly(bar_chart)
+bar_chart_plotly
+```
+
+# SHIPPING
+## 8.Best Delivery Time Of Shipping
+```{r echo=FALSE,warning=FALSE}
+df_categories<- readxl::read_xlsx("categories.xlsx")
+df_order_item<- read.csv("orderdetails.csv")
+df_orders<- read.csv("orders.csv")
+df_product<- read.csv("products.csv")
+df_customers<- read.csv("customers.csv")
+df_suppliers <- read.csv("suppliers.csv")
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+df_orders<-df_orders |>
+  mutate(required_date= ymd_hms(RequiredDate),
+         shipped_date=ymd_hms(ShippedDate),
+         order_date= ymd_hms(OrderDate),
+         islate= if_else(shipped_date > required_date, TRUE, FALSE)) 
+#seen late shipping
+df_late_shipments <- df_orders|>
+  filter(islate) |>
+  select(OrderID,order_date,shipped_date,required_date,islate) 
+
+df_suppliers_delivery <- df_late_shipments |>
+  left_join(df_order_item |>
+              select(OrderID, ProductID),
+            by = c("OrderID"= "OrderID")) |>
+  left_join(df_product |>
+              select(ProductID,ProductName, SupplierID),
+            by =c("ProductID"="ProductID"))
+
+# Step 3: Analyze the best time delivery of shipping
+plotly::ggplotly(
+  df_delivery_times <- df_suppliers_delivery |>
+    
+    left_join(df_suppliers |>
+                select(SupplierID,CompanyName),
+              by =c("SupplierID"="SupplierID"))|>
+    group_by(SupplierID,CompanyName) |>
+    summarize(AvgDeliveryTime = mean(shipped_date - order_date, na.rm = TRUE))|>
+    ggplot(aes(y = AvgDeliveryTime, x = CompanyName)) +
+    geom_bar(stat = "identity", fill = "skyblue") +
+    labs(title = "Average Delivery Time by Supplier",
+         x = "Company Name",
+         y = "Average Delivery Time") +
+    theme_minimal()+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+)
+
+```
+
+# Product
+## 9.Top 10 Selling Products
+```{r echo=TRUE,warning=FALSE,message=TRUE}
+df_total_sales <- df_order_item|>
+  mutate(Sales= UnitPrice*Quantity)|>
+  group_by(ProductID)|>
+  summarise(Total_sale=sum(Sales))
+
+df_sales_info <- df_total_sales|>
+  left_join(df_product|>
+              select(ProductID,ProductName,CategoryID),
+            by= c("ProductID"="ProductID"))|>
+  left_join(df_categories|>
+              select(CategoryID,CategoryName),
+            by= c("CategoryID"="CategoryID"))
+
+top_10_selling_products <- df_sales_info |>
+  arrange(desc(Total_sale))|>
+  head(10)|>
+  select(CategoryName,ProductName,Total_sale)
+ggplot(top_10_selling_products, aes(x = ProductName, y = Total_sale)) +
+  geom_bar(stat = "identity", fill = "royalblue") +
+  labs(title = "Top 10 Selling Products",
+       x = "Product",
+       y = "Total Sales") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_y_continuous(labels = scales::comma, breaks = scales::pretty_breaks())
+
+```
+
+## 10.Top 3 Supplier By the number of products
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+df_combined <- df_suppliers |>
+  left_join(df_product, by = "SupplierID")
+
+# Count the number of products supplied by each supplier
+supplier_product_count <- df_combined|>
+  group_by(SupplierID, CompanyName) |>
+  summarise(NumProducts = n_distinct(ProductID)) |>
+  arrange(desc(NumProducts))
+
+# Select the top 3 suppliers
+top_suppliers <- head(supplier_product_count, 3)
+
+# Print the result
+print(top_suppliers)
+```
+
+
+## 11. Analyzing Rolling 30-day Sales Trends by Category
+```{r echo=TRUE, message=FALSE,warning=FALSE, fig.width=12}
+df_orders <- df_orders |>
+  select(OrderID, OrderDate) |>
+  mutate(OrderDate = as.Date(OrderDate))
+
+# Check for missing values in OrderDate
+if (sum(is.na(df_orders$OrderDate)) > 0) {
+  stop("Missing values in OrderDate column. Handle them appropriately.")
+}
+
+df_result <- df_orders |>
+  full_join(df_order_item |>
+              select(OrderID, ProductID, UnitPrice, Quantity),
+            by = "OrderID") |>
+  full_join(df_product|>
+              select(ProductID,ProductName, CategoryID),
+            by = "ProductID") |>
+  full_join(df_categories |>
+              select(CategoryID, CategoryName),
+            by = "CategoryID") |>
+  mutate(subtotal = UnitPrice * Quantity) |>
+  select(OrderDate, CategoryName, subtotal) |>
+  tidyr::complete(OrderDate = seq(from = min(df_orders$OrderDate), to = max(df_orders$OrderDate), by = "days"),
+                  CategoryName = unique(CategoryName),
+                  fill = list(subtotal = 0))
+
+rolling_data <- df_result |>
+  arrange(CategoryName, OrderDate) |>
+  group_by(CategoryName) |>
+  mutate(
+    sales_past_30d = zoo::rollapplyr(subtotal, width = 30, FUN = sum, fill = NA, align = "right", partial = TRUE),
+    min_OrderDate = min(OrderDate),
+    max_OrderDate = max(OrderDate)
+  )
+
+gg <- ggplot(rolling_data, aes(x = OrderDate, y = sales_past_30d, color = CategoryName, group = CategoryName, text = paste("Sales: ", scales::dollar(sales_past_30d, digits = 3)))) +
+  geom_line() +
+  labs(title = "Rolling Past 30 Days Sales",
+       x = "Order Date",
+       y = "Sales (in dollars)") +
+  facet_wrap(~CategoryName, scales = "free_y", ncol = 2) +
+  theme_minimal()
+
+# Convert ggplot to plotly with increased size
+interactive_plot <- ggplotly(gg, tooltip = "text", height = 400, width = 800)
+
+# Print or display the interactive plot
+interactive_plot
+
+```
+## 12.Proportion of Orders by City and Country
+```{r echo=FALSE,warning=FALSE,message=FALSE}
+df_categories<- readxl::read_xlsx("categories.xlsx")
+df_order_item<- read.csv("orderdetails.csv")
+df_orders<- read.csv("orders.csv")
+df_product<- read.csv("products.csv")
+df_customers<- read.csv("customers.csv")
+df_suppliers <- read.csv("suppliers.csv")
+df_sales <- df_order_item|>
+  
+  mutate(sales=UnitPrice*Quantity) |>
+  full_join(df_orders|>
+              select(OrderID,CustomerID),
+            by = c("OrderID" = "OrderID"))|>
+  left_join(df_customers|>
+              select(CustomerID,City, Country),
+            by = c("CustomerID" = "CustomerID"))
+
+plotly::ggplotly(
+df_sales|>
+  group_by(Country,City)|>
+  summarize(city_sales=sum(sales))|>
+  mutate(country_sales= sum(city_sales))|>
+  mutate(p_country_sales=round(city_sales/country_sales,3))|>
+  ggplot(aes(x = Country, y=p_country_sales, fill= City)) +
+  geom_bar(stat="identity")+
+  labs(title = "Proportion of Orders",
+       x = "Country",
+       y = "Proportion Value") +
+  theme_minimal()+
+  theme(axis.text.x =  element_text(angle = 45, hjust = 1))
+)
+
+```
+
+
+
+
